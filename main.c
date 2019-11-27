@@ -1,45 +1,45 @@
-#include "buffer.h"
+#include "filter.h"
 #include "delay.h"
-#include "buffer.h"
+#include "ADC.h"
 #include "tm1637.h"
-// Test buffer and display
-// Display Tm 1637 shuld be:GNG-GND, VCC-5v, DIO - B6, CLC - B7
-
-//#define BUF_SIZE_128 128
-//#define BUF_SIZE_64  64
-//#define BUF_SIZE_16  16
-//#define BUF_SIZE_8   8
-//#define BUF_SIZE_4   4
-//// Two GPIO for SPI emul //GPIO_Pin_6|GPIO_Pin_7;//GPIOB
-
-
+#include "stdio.h"
+#define BUFFER_SIZE 64
+#define FILTER_ARITY 16
 
 unsigned int digit_display0 = 0;
-unsigned int digit_display2 = 2222;
-
-
-
+struct Buffer buf;
 
 int main()
 {
-
-	TM1637_init();	
-  TM1637_brightness(BRIGHT_TYPICAL); 
+	ADC_init();
+	delay_ms(10);
+	TM1637_init();
+	TM1637_brightness(BRIGHT_TYPICAL);
 	delay_ms(10);
 	TM1637_display_all(digit_display0);
 	delay_ms(1000);
-	TM1637_display_all(digit_display2);
-	delay_ms(1000);
-	for (int i=0; i<BUF_SIZE_8; i++)
-	{
-			buffer_add(i);
+	buf = cbuf_new(BUFFER_SIZE);
+	
+	TIM_TimeBaseInitTypeDef TIMER_InitStructure;
+  NVIC_InitTypeDef NVIC_InitStructure;
+ 
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
+	
+	/*seed n initial values into buffer*/
+	
+	for(int i = 0; i < FILTER_ARITY; i++){
+		cbuf_write(&buf, ADC_read());
+		cbuf_read(&buf);
+		delay_ms(5);
 	}
-
+	
+	int filter_val = 0;
 	while (1)
 	{
-		TM1637_display_all(buffer_read()); 
-		delay_ms(300);
+		cbuf_write(&buf, ADC_read());
+		filter_val = n_term_recursive_filter(&buf, FILTER_ARITY, filter_val);
+		TM1637_display_all(filter_val);
+		cbuf_read(&buf);
+		delay_ms(25);
 	}
 }
-
-
